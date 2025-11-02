@@ -22,7 +22,7 @@ import           TestSuite.Util
 --------------------------------------------------------------------------------
 tests :: TestTree
 tests = testGroup "Hakyll.Core.Dependencies.Tests" $
-    fromAssertions "analyze" [case01, case02, case03]
+    fromAssertions "analyze" [case01, case02, case03, case04]
 
 
 --------------------------------------------------------------------------------
@@ -38,10 +38,14 @@ oldFacts = M.fromList
     , ("posts/02.md",
         [])
     , ("index.md",
-        [ PatternDependency "posts/*"
+        [ Dependency KindContent $ PatternDependency "posts/*"
             (S.fromList ["posts/01.md", "posts/02.md"])
-        , IdentifierDependency "posts/01.md"
-        , IdentifierDependency "posts/02.md"
+        , Dependency KindContent $ IdentifierDependency "posts/01.md"
+        , Dependency KindContent $ IdentifierDependency "posts/02.md"
+        ])
+    , ("sidebar",
+        [ Dependency KindMetadata $ PatternDependency "posts/*"
+            (S.fromList ["posts/01.md", "posts/02.md"])
         ])
     ]
 
@@ -65,7 +69,16 @@ case02 = S.singleton "about.md" @=? ood
 --------------------------------------------------------------------------------
 -- | posts/01.md was removed
 case03 :: Assertion
-case03 = S.singleton "index.md" @=? ood
+case03 = S.fromList ["index.md", "sidebar"] @=? ood
   where
     (ood, _, _) =
         outOfDate ("posts/01.md" `delete` oldUniverse) S.empty S.empty oldFacts
+
+
+--------------------------------------------------------------------------------
+-- | metadata of posts/01.md was changed
+case04 :: Assertion
+case04 = S.singleton "sidebar" @=? ood
+  where
+    (ood, _, _) =
+        outOfDate oldUniverse S.empty (S.singleton "posts/01.md") oldFacts
