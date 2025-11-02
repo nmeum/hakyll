@@ -9,7 +9,6 @@ module Hakyll.Core.Metadata
     , getMetadataField
     , getMetadataField'
     , makePatternDependency
-    , makeMetaPatternDependency
 
     , BinaryMetadata (..)
     ) where
@@ -89,13 +88,6 @@ makePatternDependency :: MonadMetadata m => Pattern -> m Dependency
 makePatternDependency pattern = do
     matches' <- getMatches pattern
     return $ PatternDependency pattern (S.fromList matches')
-
-
---------------------------------------------------------------------------------
-makeMetaPatternDependency :: MonadMetadata m => Pattern -> m Dependency
-makeMetaPatternDependency pattern = do
-    matches' <- getMatches pattern
-    return $ MetaPatternDependency pattern (S.fromList matches')
 
 
 --------------------------------------------------------------------------------
