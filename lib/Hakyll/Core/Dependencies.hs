@@ -34,6 +34,8 @@ data Dependency
     = PatternDependency Pattern (Set Identifier)
     | IdentifierDependency Identifier
     | AlwaysOutOfDate
+    | MetaPatternDependency Pattern (Set Identifier)
+    | MetaIdentifierDependency Identifier
     deriving (Show, Typeable)
 
 
@@ -42,10 +44,14 @@ instance Binary Dependency where
     put (PatternDependency p is) = putWord8 0 >> put p >> put is
     put (IdentifierDependency i) = putWord8 1 >> put i
     put AlwaysOutOfDate = putWord8 2
+    put (MetaPatternDependency p is) = putWord8 3 >> put p >> put is
+    put (MetaIdentifierDependency i) = putWord8 4 >> put i
     get = getWord8 >>= \t -> case t of
         0 -> PatternDependency <$> get <*> get
         1 -> IdentifierDependency <$> get
         2 -> pure AlwaysOutOfDate
+        3 -> MetaPatternDependency <$> get <*> get
+        4 -> MetaIdentifierDependency <$> get
         _ -> error "Data.Binary.get: Invalid Dependency"
 
 
@@ -113,9 +119,11 @@ dependenciesFor id' = do
     facts <- dependencyFacts <$> State.get
     return $ foldMap dependenciesFor' $ fromMaybe [] $ M.lookup id' facts
   where
-    dependenciesFor' (IdentifierDependency i) = DependsOn [(KindContent, i)]
-    dependenciesFor' (PatternDependency _ is) = DependsOn $ map (\i -> (KindContent, i)) (S.toList is)
-    dependenciesFor' AlwaysOutOfDate          = MustRebuild
+    dependenciesFor' (IdentifierDependency i)     = DependsOn [(KindContent, i)]
+    dependenciesFor' (PatternDependency _ is)     = DependsOn $ map (\i -> (KindContent, i)) (S.toList is)
+    dependenciesFor' AlwaysOutOfDate              = MustRebuild
+    dependenciesFor' (MetaIdentifierDependency i) = DependsOn [(KindMetadata, i)]
+    dependenciesFor' (MetaPatternDependency _ is) = DependsOn $ map (\i -> (KindMetadata, i)) (S.toList is)
 
 
 --------------------------------------------------------------------------------
@@ -137,9 +145,19 @@ checkChangedPatterns = do
         State.modify $ \s -> s
             {dependencyFacts = M.insert id' deps' $ dependencyFacts s}
   where
-    go _   ds (IdentifierDependency i) = return $ IdentifierDependency i : ds
-    go _   ds AlwaysOutOfDate          = return $ AlwaysOutOfDate : ds
-    go id' ds (PatternDependency p ls) = do
+    go _   ds (IdentifierDependency i)     = return $ IdentifierDependency i : ds
+    go _   ds (MetaIdentifierDependency i) = return $ MetaIdentifierDependency i : ds
+    go _   ds AlwaysOutOfDate              = return $ AlwaysOutOfDate : ds
+    go id' ds (MetaPatternDependency p ls) = do
+        universe <- ask
+        let ls' = S.fromList $ filterMatches p universe
+        if ls == ls'
+            then return $ MetaPatternDependency p ls : ds
+            else do
+                tell [show id' ++ " is out-of-date because a pattern changed"]
+                markOod id'
+                return $ MetaPatternDependency p ls' : ds
+    go id' ds (PatternDependency p ls)     = do
         universe <- ask
         let ls' = S.fromList $ filterMatches p universe
         if ls == ls'
