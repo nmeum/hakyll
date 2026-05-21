@@ -4,6 +4,10 @@ title: Releases
 
 # Releases
 
+## 4.17.1.0
+
+- Added support for `aeson` 2.3
+
 ## 4.17.0.0
 
 This release is nearly identical to 4.16.8.0. However, 4.16.8.0 contains a breaking change
